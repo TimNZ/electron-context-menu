@@ -3,9 +3,7 @@ const electron = require('electron');
 const {download} = require('electron-dl');
 const isDev = require('electron-is-dev');
 
-function webContents(win) {
-	return win.webContents || win.getWebContents();
-}
+const webContents = win => win.webContents || win.getWebContents();
 
 function create(win, opts) {
 	webContents(win).on('context-menu', (e, props) => {
@@ -75,8 +73,19 @@ function create(win, opts) {
 		}];
 	}
 
-	if (opts.prepend) {
-		const result = opts.prepend(props, win);
+		if (props.mediaType === 'image') {
+			menuTpl = [{
+				type: 'separator'
+			}, {
+				id: 'save',
+				label: 'Save Image',
+				click() {
+					download(win, props.srcURL);
+				}
+			}, {
+				type: 'separator'
+			}];
+		}
 
 		if (Array.isArray(result)) {
 			menuTpl.unshift(...result);
@@ -100,8 +109,18 @@ function create(win, opts) {
 			click() {
 				win.inspectElement(props.x, props.y);
 
-				if (webContents(win).isDevToolsOpened()) {
-					webContents(win).devToolsWebContents.focus();
+		if (opts.showInspectElement || (opts.showInspectElement !== false && isDev)) {
+			menuTpl.push({
+				type: 'separator'
+			}, {
+				id: 'inspect',
+				label: 'Inspect Element',
+				click() {
+					win.inspectElement(props.x, props.y);
+
+					if (webContents(win).isDevToolsOpened()) {
+						webContents(win).devToolsWebContents.focus();
+					}
 				}
 			}
 		}, {
@@ -118,23 +137,23 @@ function create(win, opts) {
 		}
 	}
 
-	// Filter out leading/trailing separators
-	// TODO: https://github.com/electron/electron/issues/5869
-	menuTpl = delUnusedElements(menuTpl);
+		// Filter out leading/trailing separators
+		// TODO: https://github.com/electron/electron/issues/5869
+		menuTpl = delUnusedElements(menuTpl);
 
-	if (menuTpl.length > 0) {
-		const menu = (electron.remote ? electron.remote.Menu : electron.Menu).buildFromTemplate(menuTpl);
+		if (menuTpl.length > 0) {
+			const menu = (electron.remote ? electron.remote.Menu : electron.Menu).buildFromTemplate(menuTpl);
 
-		/*
-		 * When electron.remote is not available this runs in the browser process.
-		 * We can safely use win in this case as it refers to the window the
-		 * context-menu should open in.
-		 * When this is being called from a webView, we can't use win as this
-		 * would refere to the webView which is not allowed to render a popup menu.
-		 */
-		menu.popup(electron.remote ? electron.remote.getCurrentWindow() : win);
-	}
-});
+			/*
+			 * When electron.remote is not available this runs in the browser process.
+			 * We can safely use win in this case as it refers to the window the
+			 * context-menu should open in.
+			 * When this is being called from a webView, we can't use win as this
+			 * would refere to the webView which is not allowed to render a popup menu.
+			 */
+			menu.popup(electron.remote ? electron.remote.getCurrentWindow() : win);
+		}
+	});
 }
 
 function delUnusedElements(menuTpl) {
